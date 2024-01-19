@@ -1,0 +1,23 @@
+# import discord
+
+# """slash cog template"""
+
+# class TestSlash(discord.Cog):
+#     """Test cog"""
+#     def __init__(self, bot):
+#         self.bot = bot
+
+#     @discord.slash_command(name="test_slash", brief="testowa wiadomość", guild_ids=[901904937930346567])
+#     async def test_command_slash(self, ctx, *, input: str = None):
+#         """Pokazuje test"""
+
+#         prefix = "&"
+#         version = "0.1"
+
+#         await ctx.respond(f"{prefix} {version}")
+
+#     print(f"** SUCCESSFULLY LOADED {__name__} **")
+
+
+# def setup(bot):
+#     bot.add_cog(TestSlash(bot))
