@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 
-import cogs.database_helper as database_helper
+import database_helper as database_helper
 
 # ========== START =========== #
 
@@ -13,15 +13,12 @@ intents = discord.Intents.all()
 
 print(discord.__version__)
 
-load_dotenv()
-bot_token = os.environ['bot_token']
-
-bot = commands.Bot(command_prefix="&", intents=intents, help_command=None)
-
 
 # ========== STATIC VARIABLES =========== #
 
 
+load_dotenv()
+bot = commands.Bot(command_prefix="&", intents=intents, help_command=None)
 bot_token = os.environ['bot_token']
 test_guilds = [901904937930346567]
 owner_id = 336475402535174154
