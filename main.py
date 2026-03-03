@@ -1,10 +1,10 @@
 import os
-from replit import db
-from keep_alive import keep_alive
-from initialize_database import initialize_database
+from dotenv import load_dotenv
 
 import discord
 from discord.ext import commands
+
+import cogs.database_helper as database_helper
 
 # ========== START =========== #
 
@@ -13,9 +13,10 @@ intents = discord.Intents.all()
 
 print(discord.__version__)
 
+load_dotenv()
 bot_token = os.environ['bot_token']
 
-bot = commands.Bot(command_prefix = "&", intents = intents, help_command=None)
+bot = commands.Bot(command_prefix="&", intents=intents, help_command=None)
 
 
 # ========== STATIC VARIABLES =========== #
@@ -34,22 +35,18 @@ owner_id = 336475402535174154
 async def on_ready():
     print(f"Logged in as {bot.user}\n")
 
-    initialize_database(bot)
-    
-    matches = db.prefix("")
-    print(f"====== DATABASE ======\n{matches}\n")
-    print(f"====== BOT STARTED ======")
+    print("====== BOT STARTED ======")
 
     for cog in bot.cogs:
         for command in bot.get_cog(cog).get_commands():
             print(command.name)
     print([guild.id for guild in bot.guilds])
 
-    
+
 # ========== LOADING COGS =========== #
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     print("loading plugins...")
     """
     Loads the cogs from the `./cogs` folder.
@@ -57,12 +54,12 @@ if __name__=='__main__':
         The cogs are named in this format `{cog_dir}.{cog_filename_without_extension}`.
     """
     for cog in os.listdir('cogs'):
-        if cog.endswith('.py') == True:
+        if cog.endswith('.py') is True:
             print(f"loading cogs.{cog[:-3]}...")
             bot.load_extension(f'cogs.{cog[:-3]}')
         elif os.path.isdir(f'cogs/{cog}'):
             for file in os.listdir(f'cogs/{cog}'):
-                if file.endswith('.py') == True:
+                if file.endswith('.py') is True:
                     print(f"loading cogs.{cog}.{file[:-3]}...")
                     bot.load_extension(f'cogs.{cog}.{file[:-3]}')
 
@@ -72,12 +69,10 @@ if __name__=='__main__':
 
 @bot.event
 async def on_message(message):
-    
-    if message.author.bot == True:
-  	    return
 
-    initialize_database(bot)
-    
+    if message.author.bot is True:
+        return
+
     await bot.process_commands(message)
 
 
@@ -88,7 +83,7 @@ async def on_message(message):
 #     buttons = discord.ui.View(timeout = None)
 #     async def dice_buttons_callback(interaction):
 #         await interaction.response.send("you clicked the button!")
-        
+
 #     for i in range(6):
 #         button = discord.ui.Button(
 #             label=i,
@@ -96,7 +91,7 @@ async def on_message(message):
 #             style=discord.ButtonStyle.gray
 #         )
 #         button.callback = dice_buttons_callback
-        
+
 #         buttons.add_item(button)
 #     await ctx.respond(view=buttons)
 
@@ -113,23 +108,23 @@ async def on_message(message):
 async def list_games(ctx):
     """Shows a list of available games"""
     description = ""
-    for file in os.listdir(f'./cogs/games'):
-        if file.endswith('.py') == True:
+    for file in os.listdir('./cogs/games'):
+        if file.endswith('.py') is True:
             description += (f'• {file[:-3]}\n')
     embed = discord.Embed(title="Available games", description=description, color=discord.Color.teal())
     await ctx.respond(embed=embed)
 
 
 @bot.slash_command(name="set_category_channel")
-async def select_game_hub_category(ctx, category: discord.commands.Option(discord.CategoryChannel, "Category, where all games will be played")):
+async def select_game_hub_category(ctx, category: discord.commands.Option(discord.CategoryChannel, "Category, where all games will be played")):    # type: ignore
     """Used to set a category channel, where all games will be played"""
     if ctx.author.guild_permissions.manage_channels or ctx.author.guild_permissions.administrator:
-        db['guilds'][str(ctx.guild.id)]['games_category_id'] = category.id
+        await database_helper.set_guild_config(ctx.guild.id, category.id)
         description = f"Game category channel has been set to `{category.name}`.\nFrom now on, all the games will be held in that category."
         embed = discord.Embed(title="Success!", description=description, color=discord.Color.green())
         await ctx.respond(embed=embed)
     else:
-        description = f"You don't have permission to change the category channel!"
+        description = "You don't have permission to change the category channel!"
         embed = discord.Embed(title="Access Denied!", description=description, color=discord.Color.red())
         await ctx.respond(embed=embed, ephemeral=True)
 
@@ -146,11 +141,11 @@ async def select_game_hub_category(ctx, category: discord.commands.Option(discor
 async def reload_cogs(ctx):
     print("reloading...")
     for cog in os.listdir('./cogs'):
-        if cog.endswith('.py') == True:
+        if cog.endswith('.py') is True:
             bot.reload_extension(f'cogs.{cog[:-3]}')
         elif os.path.isdir(f'./cogs/{cog}'):
             for file in os.listdir(f'./cogs/{cog}'):
-                if file.endswith('.py') == True:
+                if file.endswith('.py') is True:
                     bot.reload_extension(f'cogs.{cog}.{file[:-3]}')
     await ctx.send("Successfully reloaded all plugins!")
 
@@ -160,16 +155,15 @@ async def reload_cogs(ctx):
 async def load_cogs(ctx):
     print("loading...")
     for cog in os.listdir('./cogs'):
-        if cog.endswith('.py') == True:
+        if cog.endswith('.py') is True:
             print(f"loading cogs.{cog[:-3]}...")
             bot.load_extension(f'cogs.{cog[:-3]}')
         elif os.path.isdir(f'./cogs/{cog}'):
             for file in os.listdir(f'./cogs/{cog}'):
-                if file.endswith('.py') == True:
+                if file.endswith('.py') is True:
                     print(f"loading cogs.{cog}.{file[:-3]}...")
                     bot.load_extension(f'cogs.{cog}.{file[:-3]}')
     await ctx.send("Successfully loaded all plugins!")
 
 
-keep_alive()
 bot.run(bot_token)

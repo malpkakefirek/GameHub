@@ -1,8 +1,9 @@
 import discord
 # from discord.ext import commands
 from discord.errors import Forbidden
-from replit import db
 # from main import test_guilds
+
+import database_helper
 """
 « HELP COG »
 Original concept by Jared Newsom (AKA Jared M.F.)
@@ -35,14 +36,21 @@ async def send_embed(ctx, embed):
 
 class Help(discord.Cog):
     """Help cog"""
-    
+
     def __init__(self, bot):
         self.bot = bot
         print(f"** SUCCESSFULLY LOADED {__name__} **")
 
     @discord.slash_command(name="help")
-    async def help_slash(self, ctx, *, input: discord.commands.Option(str, "A command or category, you want more info on", default=None)):
+    async def help_slash(self, ctx, *, input: discord.commands.Option(str, "A command or category, you want more info on", default=None)):  # type: ignore
         """Helpful if you forget how to use commands"""
+
+        # Fallback embed in case something goes wrong - should never be sent, but better safe than sorry
+        emb = discord.Embed(
+            title="Error",
+            description="An unexpected error occurred",
+            color=discord.Color.red()
+        )
 
         prefix = "/"
         secondary_prefix = "&"
@@ -50,14 +58,14 @@ class Help(discord.Cog):
 
         # setting owner name
         owner_id = 336475402535174154
-        owner_ids = db['permitted']
+        owner_ids = await database_helper.get_bot_admins()
         try:
             owner_name = str(self.bot.get_user(owner_id))
-        except:
+        except Exception:
             owner_name = "Malpkakefirek#2936"
         try:
             avatar = self.bot.get_user(owner_id).avatar.url
-        except:
+        except Exception:
             temp_owner = await self.bot.fetch_user(owner_id)
             avatar = temp_owner.avatar.url
 
@@ -86,11 +94,11 @@ class Help(discord.Cog):
                     try:
                         for subcommand in command.subcommands:
                             commands_desc += f'`{prefix}{subcommand.qualified_name or subcommand.name}` - {subcommand.description if subcommand.description else "No description provided"}\n'
-                    except:
+                    except Exception:
                         try:
                             if not command.hidden or int(ctx.author.id) in owner_ids:
                                 commands_desc += f'`{secondary_prefix}{command.name}` - {command.description or "No description provided"}\n'
-                        except:
+                        except Exception:
                             commands_desc += f'`{prefix}{command.name}` - {command.description or "No description provided"}\n'
                 # for command in temp_cog.walk_commands():
                 #     # if cog in a cog
@@ -99,7 +107,7 @@ class Help(discord.Cog):
                 #     try:
                 #         if not command.hidden or int(ctx.author.id) in owner_ids:
                 #             commands_desc += f'`{command.qualified_name or command.name or command.signature}` - {command.description or "No description provided"}\n'
-                #     except:
+                #     except Exception:
                 #         commands_desc += f'`{command.qualified_name or command.name or command.signature}` - {command.description or "No description provided"}\n'
 
                 # adding those commands to embed
@@ -150,19 +158,19 @@ class Help(discord.Cog):
                                 if subcommand.qualified_name.lower() == input.lower():
                                     found_command = subcommand
                                     break
-                        except:
+                        except Exception:
                             if command.qualified_name.lower() == input.lower():
                                 try:
                                     if command.hidden and int(ctx.author.id) not in owner_ids:
                                         continue
-                                except:
+                                except Exception:
                                     found_command = command
-                        
+
                         if found_command:
                             break
                     if found_command:
                         break
-                
+
                 # if it's a cog
                 else:
                     # making title - getting description from doc-string below class
@@ -181,11 +189,11 @@ class Help(discord.Cog):
                                     value=subcommand.description or "No description provided",
                                     inline=False
                                 )
-                        except:
+                        except Exception:
                             try:
                                 if command.hidden and int(ctx.author.id) not in owner_ids:
                                     continue
-                            except:
+                            except Exception:
                                 pass
                             emb.add_field(
                                 name=f"{prefix}{command.name}",
@@ -201,20 +209,20 @@ class Help(discord.Cog):
                     try:
                         if command.cog or (command.hidden and int(ctx.author.id) not in owner_ids):
                             continue
-                    except:
+                    except Exception:
                         if not command.cog and command.qualified_name.lower() == input.lower():
                             found_command = command
                             break
                 # if it's not a walk slash command
-                else:    
+                else:
                     # check all walk message commands
                     for command in self.bot.walk_commands():
                         try:
                             if command.cog or (command.hidden and int(ctx.author.id) not in owner_ids):
                                 continue
-                        except:
+                        except Exception:
                             pass
-                        
+
                         if not command.cog and command.name.lower() == input.lower():
                             found_command = command
                             used_prefix = secondary_prefix
@@ -225,7 +233,7 @@ class Help(discord.Cog):
                             description=f"I've never heard of `{input}` :scream:",
                             color=discord.Color.orange()
                         )
-            
+
             if found_command:
                 emb = discord.Embed(
                     title=f':sparkles: __{used_prefix}{found_command.qualified_name or found_command.name}__ :sparkles:',
@@ -249,13 +257,12 @@ class Help(discord.Cog):
         #     emb = discord.Embed(
         #         title="Magiczna kraina.",
         #         description="Nie wiem jak tu się dostałeś. Pewnie coś poszło mocno nie tak\nProszę, napisz do Małpki o tym",
-    
+
         #         color=discord.Color.red()
         #     )
 
         # sending reply embed using our own function defined above
         await send_embed(ctx, emb)
-
 
 
 def setup(bot):

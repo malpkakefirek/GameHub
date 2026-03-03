@@ -1,23 +1,32 @@
 import discord
 # from discord.ext import commands
 # from discord.errors import Forbidden
-from replit import db
 from discord.commands import SlashCommandGroup
 import random
-from sys import exc_info
+# from sys import exc_info
+import traceback
 # import time
 
-dice_emoji = {1:'<:dice_1:755891608859443290>',2:'<:dice_2:755891608741740635>',3:'<:dice_3:755891608251138158>',4:'<:dice_4:755891607882039327>',5:'<:dice_5:755891608091885627>',6:'<:dice_6:755891607680843838>'}
+import database_helper
+
+dice_emoji = {
+    1: '<:dice_1:755891608859443290>',
+    2: '<:dice_2:755891608741740635>',
+    3: '<:dice_3:755891608251138158>',
+    4: '<:dice_4:755891607882039327>',
+    5: '<:dice_5:755891608091885627>',
+    6: '<:dice_6:755891607680843838>'
+}
+
 
 # CLASSES #
-
 class DiceButton(discord.ui.Button):
     # DiceButton INITIALIZATION
     def __init__(self, parent, label="", emoji=None, custom_id=None):
         self.parent = parent
         try:
             row = 0 if int(custom_id) <= 3 else 1
-        except:
+        except Exception:
             row = None
         super().__init__(label=label, emoji=emoji, row=row)
 
@@ -30,7 +39,7 @@ class DiceButton(discord.ui.Button):
 class FarkleRoundView(discord.ui.View):
     # FarkleRoundView INITIALIZATION
     def __init__(self, ctx, dice, dice_remaining, round_score, game_scores, players, current_player_id, winning_score):
-        super().__init__(timeout = 60)
+        super().__init__(timeout=60)
         self.ctx = ctx
         self.dice = dice
         self.dice_remaining = dice_remaining
@@ -49,7 +58,7 @@ class FarkleRoundView(discord.ui.View):
         for button in self.children:
             button.disabled = True
         await interaction.response.edit_message(view=self)
-        
+
         if not self.scoring_system.score():
             self.round_score = 0
             await interaction.followup.send(f"**Bust!**\n{self.current_player.mention}, you got `{self.round_score}` points for this round :(")
@@ -62,7 +71,7 @@ class FarkleRoundView(discord.ui.View):
         return
 
     @discord.ui.button(label="Roll again", emoji=None, style=discord.ButtonStyle.green, row=2)
-    async def continue_button_callback(self, button, interaction):    
+    async def continue_button_callback(self, button, interaction):
         if not self.is_at_least_one_selected():
             await interaction.response.edit_message(view=self)
             await interaction.followup.send("**You have to select at least one!**", ephemeral=True)
@@ -72,7 +81,7 @@ class FarkleRoundView(discord.ui.View):
             await interaction.response.edit_message(view=self)
             await interaction.followup.send("**Every die must be scoring!**", ephemeral=True)
             return
-            
+
         for button in self.children:
             button.disabled = True
         self.timeout = None
@@ -83,7 +92,7 @@ class FarkleRoundView(discord.ui.View):
             self.dice_remaining = self.dice_unselected_count()
         self.round_score += self.scoring_system.score()
         await self.roll_dice(interaction)
-        
+
 
     async def interaction_check(self, interaction):
         if interaction.user != self.current_player:
@@ -91,19 +100,19 @@ class FarkleRoundView(discord.ui.View):
             return False
         else:
             return True
-        
+
     # FarkleRoundView FUNCTIONS
     def round_embed(self) -> discord.Embed:
         embed = discord.Embed(
-            title = f"**{self.players[0].name}** vs. **{self.players[1].name}** | First to {self.winning_score} points wins!",
-            color = discord.Color.teal(),
-            description = f"Game scores:\n{self.players[0].mention} - `{self.game_scores[0]}`\n{self.players[1].mention} - `{self.game_scores[1]}`\n\nRound score: `{self.round_score}`\nThese are your dice:"
+            title=f"**{self.players[0].name}** vs. **{self.players[1].name}** | First to {self.winning_score} points wins!",
+            color=discord.Color.teal(),
+            description=f"Game scores:\n{self.players[0].mention} - `{self.game_scores[0]}`\n{self.players[1].mention} - `{self.game_scores[1]}`\n\nRound score: `{self.round_score}`\nThese are your dice:"
         )
         embed.set_footer(text=f"{self.current_player.name}'s turn", icon_url=self.current_player.display_avatar.url)
         # content = "Game scores:\nPlayer 1 - `{self.game_scores['player1']}\nPlayer 2 - `{self.game_scores['player2']}`\n\nRound score: `{self.round_score}`\nThese are your dice:"
         return embed
-    
-    async def roll_dice(self, interaction):        
+
+    async def roll_dice(self, interaction):
         self.dice = dict()
         for die_id in range(self.dice_remaining):
             self.dice[die_id] = dice_emoji[random.randint(1, 6)]
@@ -117,7 +126,7 @@ class FarkleRoundView(discord.ui.View):
             await interaction.edit_original_message(view=self)
         else:
             self.stop()
-        
+
     def is_at_least_one_selected(self) -> bool:
         if len([button for button in self.children if button.style == discord.ButtonStyle.blurple]) > 0:
             return True
@@ -140,11 +149,11 @@ class FarkleRoundView(discord.ui.View):
 class FarkleScoringSystem():
     def __init__(self, dice_buttons_view):
         self.dice_view = dice_buttons_view
-        self.dice_faces_count = {1:0, 2:0, 3:0, 4:0, 5:0, 6:0}
+        self.dice_faces_count = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
 
     def count_faces(self):
         self.dice_selected = self.dice_view.dice_selected()
-        for i in range(1, 7):  
+        for i in range(1, 7):
             self.dice_faces_count[i] = len([dice for dice in self.dice_selected if str(dice.emoji) == dice_emoji[i]])
 
     def score(self):
@@ -162,7 +171,7 @@ class FarkleScoringSystem():
                 added_score += 50
             elif len(selected_twice) > 0:
                 return 0    # There is a non-scoring dice outside of the combo (illegal move!)
-            
+
             if 1 in selected and 6 not in selected:
                 added_score += 500
                 return added_score
@@ -171,7 +180,7 @@ class FarkleScoringSystem():
                 return added_score
             else:
                 return 0    # There is a hole inside of the combo (illegal move!) (eg. 1-2-4-5-6)
-                
+
         else:
             for dice_face in self.dice_faces_count:
                 times_dice_used = 0
@@ -187,20 +196,20 @@ class FarkleScoringSystem():
                 elif dice_face == 5:
                     added_score += 50 * self.dice_faces_count[dice_face]
                     times_dice_used += self.dice_faces_count[dice_face]
-    
+
                 if times_dice_used != self.dice_faces_count[dice_face]:
                     return 0    # There is a non-scoring dice (illegal move!)
-    
+
             return added_score
 
-    
+
 class AcceptChallengeView(discord.ui.View):
     def __init__(self, ctx, rival):
         super().__init__(timeout=300)
         self.ctx = ctx
         self.denied = False
         self.rival = rival
-    
+
     @discord.ui.button(label="Accept", style=discord.ButtonStyle.green)
     async def accept_button_callback(self, button, interaction):
         for button in self.children:
@@ -212,7 +221,7 @@ class AcceptChallengeView(discord.ui.View):
         self.stop()
 
     @discord.ui.button(label="Deny", style=discord.ButtonStyle.red)
-    async def deny_button_callback(self, button, interaction):        
+    async def deny_button_callback(self, button, interaction):
         for button in self.children:
             button.disabled = True
         await interaction.response.send_message("You denied the invite!", ephemeral=True)
@@ -232,10 +241,14 @@ class AcceptChallengeView(discord.ui.View):
             await self.ctx.interaction.edit_original_message(content=f"Open invite from {self.ctx.interaction.user.mention} to a game of Farkle timed out!", view=self)
 
     async def interaction_check(self, interaction):
+        if interaction.user == self.ctx.interaction.user:
+            await interaction.response.send_message("You cannot respond to your own invite!", ephemeral=True)
+            return False
         if interaction.user != self.rival and self.rival:
             await interaction.response.send_message("You cannot respond to someone else's invite!", ephemeral=True)
-        return interaction.user == self.rival or not self.rival
-        
+            return False
+        return True
+
 
 
 class Farkle(discord.Cog):
@@ -244,39 +257,35 @@ class Farkle(discord.Cog):
     """
     def __init__(self, bot):
         self.bot = bot
-        
+
     farkle = SlashCommandGroup("farkle", "Commands connected with the game Farkle")
 
-    
     # EVENTS
 
     @discord.Cog.listener()
     async def on_error(self, interaction):
-        exc = exc_info()
+        exc = traceback.format_exc()
         print(f"interacted failed for {interaction}")
         if interaction.is_component():
             print(interaction.data)
         try:
             interaction.respond(exc)
-        except:
+        except Exception:
             try:
                 user = await self.bot.fetch_user(336475402535174154)
                 await user.send(exc)
-            except:
+            except Exception:
+                print("Failed to send error message to the user.")
                 pass
-                
+
         with open("/errors.txt", 'w') as f:
             f.write(exc)
             f.write("<<<================================>>>")
-                
-    
-    
-    # FUNCTIONS
-    
 
-        
+    # FUNCTIONS
+
     # COMMANDS
-    
+
     @farkle.command(name="rules", brief="show the rules of Farkle")
     async def rules(self, ctx):
         """Shows rules of Farkle"""
@@ -285,23 +294,23 @@ class Farkle(discord.Cog):
             color=discord.Color.teal()
         )
         embed.add_field(
-            name="How to play", 
+            name="How to play",
             value="""
-            Farkle is a 2-player game, where the first one to reach winning_score points wins. 
+            Farkle is a 2-player game, where the first one to reach winning_score points wins.
             Both players take turns playing, and during the first round, a random person starts.
             At the first throw each turn, 6 dice are thrown. If you wish to throw again, you can do so by clicking `Continue`.
-            On the next throw, you'll throw however many dice you had minus the amount selected, e.g. you threw 5 dice and selected 2, next you'll throw 3 dice.""", 
+            On the next throw, you'll throw however many dice you had minus the amount selected, e.g. you threw 5 dice and selected 2, next you'll throw 3 dice.""",
             inline=False
         )
         embed.add_field(
-            name="One's turn ends either by:", 
+            name="One's turn ends either by:",
             value="""
             • Passing the turn by submitting the points. (Clicking `Stop!`)
-            • Getting a `bust` by rolling and not having any scoring dice. (This forfeits all points scored during this turn!)""", 
+            • Getting a `bust` by rolling and not having any scoring dice. (This forfeits all points scored during this turn!)""",
             inline=False
         )
         embed.add_field(
-            name="Scoring", 
+            name="Scoring",
             value=f"""
             • a single {dice_emoji[1]} is worth 100 points;
             • a single {dice_emoji[5]} is worth 50 points;
@@ -310,14 +319,19 @@ class Farkle(discord.Cog):
             • four or more of a kind is worth double the points of three of a kind, so four {dice_emoji[4]} are worth 800 points, five {dice_emoji[4]} are worth 1,600 points etc.
             • full straight {dice_emoji[1]}-{dice_emoji[6]} is worth 1500 points.
             • partial straight {dice_emoji[1]}-{dice_emoji[5]} is worth 500 points.
-            • partial straight {dice_emoji[2]}-{dice_emoji[6]} is worth 750 points.""", 
+            • partial straight {dice_emoji[2]}-{dice_emoji[6]} is worth 750 points.""",
             inline=False
         )
         await ctx.respond(embed=embed)
-        
+
 
     @farkle.command(name="start", brief="start a game of Farkle")
-    async def start_game(self, ctx, rival: discord.commands.Option(discord.User, "Player, you want to play with (anyone if not provided)", default=None), winning_score: discord.commands.Option(int, "Amount of point, at which a player will win the game (default is 4000)", min_value=50, default=4000)):
+    async def start_game(
+        self,
+        ctx,
+        rival: discord.commands.Option(discord.User, "Player, you want to play with (anyone if not provided)", default=None),   # type: ignore
+        winning_score: discord.commands.Option(int, "Amount of point, at which a player will win the game (default is 4000)", min_value=50, default=4000)   # type: ignore
+    ):
         """Starts a game of Farkle"""
         invitation = AcceptChallengeView(ctx, rival)
         if rival:
@@ -325,7 +339,7 @@ class Farkle(discord.Cog):
         else:
             invitation.remove_item([button for button in invitation.children if button.style == discord.ButtonStyle.red][0])
             await ctx.respond(f"{ctx.author.mention} is looking for anyone, to play a game of Farkle to {winning_score} points with them! Click below to accept the invitaion!", view=invitation)
-            
+
         invitation_timed_out = await invitation.wait()
         if invitation_timed_out or invitation.denied:
             return
@@ -334,34 +348,40 @@ class Farkle(discord.Cog):
         scores = {0: 0, 1: 0}
         players = [ctx.author, rival]
         current_player = random.randint(0, 1)
-        
+
+        bot_permissions = discord.PermissionOverwrite(send_messages=True, add_reactions=True, view_channel=True, manage_messages=True, manage_channels=True)
         everyone_permissions = discord.PermissionOverwrite(send_messages=False, add_reactions=False)
-        opponent_permissions = discord.PermissionOverwrite(send_messages=False, add_reactions=False)        
+        opponent_permissions = discord.PermissionOverwrite(send_messages=False, add_reactions=False)
         player_permissions = discord.PermissionOverwrite(send_messages=True, add_reactions=False)
-        
+
+        category_setting = await database_helper.get_guild_config(ctx.guild.id)
         current_game_channel = await ctx.guild.create_text_channel(
-            name = f"farkle_◊_«{players[0].name}»_vs_«{players[1].name}»", 
-            reason = f"{players[0].name} is playing Farkle with {players[1].name}",
-            category = [category[0] for category in ctx.guild.by_category() if category[0] if category[0].id == db['guilds'][str(ctx.guild.id)]['games_category_id']][0]
+            name=f"farkle_◊_«{players[0].name}»_vs_«{players[1].name}»",
+            reason=f"{players[0].name} is playing Farkle with {players[1].name}",
+            category=[category[0] for category in ctx.guild.by_category() if category[0] and category[0].id == category_setting][0]
         )
         await current_game_channel.set_permissions(
-            target=ctx.guild.default_role, 
+            ctx.guild.me,
+            overwrite=bot_permissions
+        )
+        await current_game_channel.set_permissions(
+            target=ctx.guild.default_role,
             overwrite=everyone_permissions
         )
-        
+
         while True:
             await current_game_channel.set_permissions(
-                target=players[(current_player+1)%2], 
+                target=players[(current_player+1) % 2],
                 overwrite=opponent_permissions,
                 reason="It's not their turn"
             )
             await current_game_channel.set_permissions(
-                target=players[current_player], 
-                overwrite=player_permissions, 
+                target=players[current_player],
+                overwrite=player_permissions,
                 reason="Now it's their turn"
             )
             dice_remaining = 6
-            
+
             dice = dict()
             for die_id in range(dice_remaining):
                 dice[die_id] = dice_emoji[random.randint(1, 6)]
@@ -369,28 +389,28 @@ class Farkle(discord.Cog):
             round_embed = round_view.round_embed()
             await current_game_channel.send(
                 content=f"{players[current_player].mention}, it's your turn!",
-                embed=round_embed, 
+                embed=round_embed,
                 view=round_view
             )
             timed_out = await round_view.wait()
             if not timed_out:
                 scores[current_player] += round_view.round_score
             final_message = None
-            
+
             if sorted([v for k, v in scores.items()])[-1] >= winning_score:    # if biggest score >= winning_score (someone won)
                 # await ctx.send(f"**{players[current_player].mention} won!**")
                 break
-                
+
             elif timed_out:
                 final_message = f"{players[current_player].mention} abandoned the game.\n**{players[(current_player+1)%2].mention} won by default!**"
-                current_player = (current_player+1)%2
+                current_player = (current_player+1) % 2
                 break
-                
+
             else:
-                current_player = (current_player+1)%2
+                current_player = (current_player+1) % 2
                 continue
 
-        await current_game_channel.delete(reason = "Game Ended")
+        await current_game_channel.delete(reason="Game Ended")
         # final scores
         crown1 = ""
         crown2 = ""
@@ -399,13 +419,13 @@ class Farkle(discord.Cog):
         else:
             crown2 = ":crown:"
         embed = discord.Embed(
-            color = discord.Color.gold(),
-            title = f"{players[current_player].name} won!",
-            description = f"Final scores:\n{players[0].mention}{crown1} - `{scores[0]}`\n{players[1].mention}{crown2} - `{scores[1]}`"
+            color=discord.Color.gold(),
+            title=f"{players[current_player].name} won!",
+            description=f"Final scores:\n{players[0].mention}{crown1} - `{scores[0]}`\n{players[1].mention}{crown2} - `{scores[1]}`"
         )
         await ctx.respond(content=final_message, embed=embed)
-        
-    
+
+
     print(f"** SUCCESSFULLY LOADED {__name__} **")
 
 
