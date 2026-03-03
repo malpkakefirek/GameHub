@@ -52,6 +52,7 @@ class FarkleRoundView(discord.ui.View):
         self.current_player_id = current_player_id    # id of element in the self.players list
         self.current_player = players[current_player_id]
         self.winning_score = winning_score
+        self.roll_number = 1
 
     @discord.ui.button(label="Pass & score", emoji=None, style=discord.ButtonStyle.danger, row=2)
     async def stop_button_callback(self, button, interaction):
@@ -91,6 +92,7 @@ class FarkleRoundView(discord.ui.View):
         else:
             self.dice_remaining = self.dice_unselected_count()
         self.round_score += self.scoring_system.score()
+        self.roll_number += 1
         await self.roll_dice(interaction)
 
 
@@ -333,6 +335,11 @@ class Farkle(discord.Cog):
         winning_score: discord.commands.Option(int, "Amount of point, at which a player will win the game (default is 4000)", min_value=50, default=4000)   # type: ignore
     ):
         """Starts a game of Farkle"""
+
+        if rival and rival == ctx.author:
+            await ctx.respond("You cannot play with yourself! Please choose a different rival or leave it empty to play with anyone.", ephemeral=True)
+            return
+
         invitation = AcceptChallengeView(ctx, rival)
         if rival:
             await ctx.respond(f"{rival.mention}, {ctx.author.mention} has invited you to a game of Farkle to {winning_score} points! Click below to accept/deny the invitaion!", view=invitation)
@@ -348,6 +355,8 @@ class Farkle(discord.Cog):
         scores = {0: 0, 1: 0}
         players = [ctx.author, rival]
         current_player = random.randint(0, 1)
+        roll_records = []   # List to store roll records for this game, to be inserted into the database at the end of the game
+        # This is because the game has to finish to get the match_id
 
         bot_permissions = discord.PermissionOverwrite(send_messages=True, add_reactions=True, view_channel=True, manage_messages=True, manage_channels=True)
         everyone_permissions = discord.PermissionOverwrite(send_messages=False, add_reactions=False)
@@ -395,6 +404,14 @@ class Farkle(discord.Cog):
             timed_out = await round_view.wait()
             if not timed_out:
                 scores[current_player] += round_view.round_score
+                if await database_helper.should_store_roll_record(players[current_player].id, ctx.guild.id, round_view.roll_number, round_view.round_score):
+                    # Store in list instead of database
+                    roll_records.append({
+                        'player_id': players[current_player].id,
+                        'guild_id': ctx.guild.id,
+                        'roll_amount': round_view.roll_number,
+                        'round_score': round_view.round_score
+                    })
             final_message = None
 
             if sorted([v for k, v in scores.items()])[-1] >= winning_score:    # if biggest score >= winning_score (someone won)
@@ -424,6 +441,54 @@ class Farkle(discord.Cog):
             description=f"Final scores:\n{players[0].mention}{crown1} - `{scores[0]}`\n{players[1].mention}{crown2} - `{scores[1]}`"
         )
         await ctx.respond(content=final_message, embed=embed)
+
+        # Save all data to database
+        match_id = await database_helper.save_finished_match(
+            guild_id=ctx.guild.id,
+            max_score=winning_score,
+            participants=[
+                (players[0].id, scores[0], 1 if current_player == 0 else 2),
+                (players[1].id, scores[1], 1 if current_player == 1 else 2)
+            ]
+        )
+
+        for record in roll_records:
+            await database_helper.log_roll_record(
+                guild_id=record['guild_id'],
+                user_id=record['player_id'],
+                match_id=match_id,
+                roll_amount=record['roll_amount'],
+                score=record['round_score']
+            )
+
+
+    @farkle.command(name="records", brief="show your Farkle records")
+    async def records(
+        self,
+        ctx,
+        score_type: discord.commands.Option(str, "Type of score to show (score or rolls)", choices=["score", "rolls"], default="score"),   # type: ignore
+        is_global: discord.commands.Option(bool, "Whether to show global records or just for this server", default=False),   # type: ignore
+        amount: discord.commands.Option(int, "How many records to show", min_value=1, max_value=10, default=1)   # type: ignore
+    ):
+        """Shows your Farkle records"""
+        records = await database_helper.get_player_high_scores(
+            user_id=ctx.author.id,
+            score_type=score_type,
+            is_global=is_global,
+            amount=amount,
+            guild_id=ctx.guild.id if not is_global else None
+        )
+        description = ""
+        for idx, record in enumerate(records):
+            description += f"**{idx+1}.** `{record}`\n"
+        scope = "Global" if is_global else "Server"
+        embed = discord.Embed(
+            title=f"{scope} Farkle high scores for {ctx.author.display_name} ({score_type})",
+            description=description,
+            color=discord.Color.teal()
+        )
+        await ctx.respond(embed=embed)
+
 
 
     print(f"** SUCCESSFULLY LOADED {__name__} **")
